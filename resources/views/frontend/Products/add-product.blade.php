@@ -24,24 +24,24 @@
                 <div class="form-group row">
                     <label class="col-sm-2 col-form-label">Category</label>
                     <div class="col-sm-4">
-                        <select class="form-control required" name="productCategory">
+                        <select name="productCategory" class="form-control">
                             <option value="">Select Category</option>
                             @foreach($categories as $category)
-                                <option value="{{ $category->id }}" {{ old('productCategory') == $category->id ? 'selected' : '' }}>
-                                    {{ $category->category_name }}
-                                </option>
+                            <option value="{{ $category->category_id }}" {{ old('productCategory') == $category->category_id ? 'selected' : '' }}>
+                                {{ $category->category_name }}
+                            </option>
                             @endforeach
                         </select>
                     </div>
 
                     <label class="col-sm-2 col-form-label">Brand</label>
                     <div class="col-sm-4">
-                        <select class="form-control required" name="productBrand">
+                        <select name="productBrand" class="form-control">
                             <option value="">Select Brand</option>
                             @foreach($brands as $brand)
-                                <option value="{{ $brand->id }}" {{ old('productBrand') == $brand->id ? 'selected' : '' }}>
-                                    {{ $brand->brand_name }}
-                                </option>
+                            <option value="{{ $brand->brand_id }}" {{ old('productBrand') == $brand->brand_id ? 'selected' : '' }}>
+                                {{ $brand->brand_name }}
+                            </option>
                             @endforeach
                         </select>
                     </div>
@@ -59,9 +59,9 @@
                     <div class="col-sm-4">
                         <select class="form-control select2" name="colors[]" multiple="multiple" id="select">
                             @foreach($colors as $color)
-                                <option value="{{ $color->color_id }}" {{ (is_array(old('colors')) && in_array($color->color_id, old('colors'))) ? 'selected' : '' }}>
-                                    {{ $color->color_name }}
-                                </option>
+                            <option value="{{ $color->color_id }}" {{ (is_array(old('colors')) && in_array($color->color_id, old('colors'))) ? 'selected' : '' }}>
+                                {{ $color->color_name }}
+                            </option>
                             @endforeach
                         </select>
                     </div>
@@ -73,14 +73,19 @@
                     <label class="col-sm-2 col-form-label">Product Sizes</label>
                     <div class="col-sm-10 mt-2">
                         @foreach($sizes as $size)
-                            <div class="form-check form-check-inline" style="display: inline-block; margin-right: 15px;">
-                                <input class="form-check-input" type="checkbox" name="size[]" id="size_{{ $size->id }}" value="{{ $size->id }}"
-                                    {{ (is_array(old('size')) && in_array($size->id, old('size'))) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="size_{{ $size->id }}">{{ $size->size_name }}</label>
-                            </div>
+                        <div class="form-check form-check-inline" style="display: inline-block; margin-right: 15px;">
+                            <input class="form-check-input"
+                                type="checkbox"
+                                name="size[]"
+                                id="size_{{ $size->size_id }}"
+                                value="{{ $size->size_id }}"
+                                {{ (is_array(old('size')) && in_array($size->size_id, old('size'))) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="size_{{ $size->size_id }}">{{ $size->size_name }}</label>
+                        </div>
                         @endforeach
                     </div>
                 </div>
+
 
                 <div class="hr-line-dashed"></div>
 
