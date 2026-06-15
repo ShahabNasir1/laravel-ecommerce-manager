@@ -28,6 +28,7 @@
                     <tr>
                         <th>Product ID</th>
                         <th>Product Name</th>
+                        <th>Price</th>
                         <th>Category</th>
                         <th>Brand</th>
                         <th>Description</th>
@@ -43,6 +44,7 @@
                     <tr>
                         <td>{{ $product->product_id }}</td>
                         <td><strong>{{ $product->product_name }}</strong></td>
+                        <td>{{ $product->price }}</td>
                         <td>{{ $product->category->category_name ?? 'N/A' }}</td>
                         <td>{{ $product->brand->brand_name ?? 'N/A' }}</td>
                         <td>{{ Str::limit($product->description, 50, '...') }}</td>

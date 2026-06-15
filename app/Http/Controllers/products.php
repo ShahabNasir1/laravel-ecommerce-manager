@@ -7,67 +7,47 @@ use App\Models\brand;
 use App\Models\color;
 use App\Models\size;
 use App\Models\product;
+use App\Models\product_image;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log; // Added for production debugging
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
 
 class products extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         $pageTitle = 'List Products';
-
         $breadcrumbs = [
             'Products' => route('products.index'),
             'List Products' => '#'
         ];
 
-        // Eager load all relations to prevent N+1 performance bottleneck
-        $products = \App\Models\Product::with(['category', 'brand', 'sizes', 'colors', 'images'])->get();
-
+        $products = product::with(['category', 'brand', 'sizes', 'colors', 'images'])->get();
         return view('frontend.products.list-product', compact('pageTitle', 'breadcrumbs', 'products'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         $pageTitle = 'Add Product';
-
         $breadcrumbs = [
             'Products' => route('products.index'),
             'Add Product' => '#'
         ];
 
-        // Fetch lookup records from the database filtering by your active status columns
         $categories = category::where('category_status', 'active')->orderBy('category_name', 'asc')->get();
         $brands     = brand::where('brand_status', 'active')->orderBy('brand_name', 'asc')->get();
         $colors     = color::where('color_status', 'active')->orderBy('color_name', 'asc')->get();
         $sizes      = size::where('size_status', 'active')->get();
 
-        // Pass all variables straight down into the view layout
-        return view('frontend.products.add-product', compact(
-            'pageTitle',
-            'breadcrumbs',
-            'categories',
-            'brands',
-            'colors',
-            'sizes'
-        ));
+        return view('frontend.products.add-product', compact('pageTitle', 'breadcrumbs', 'categories', 'brands', 'colors', 'sizes'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        // 1. Strict Validation
         $validated = $request->validate([
             'productCategory'    => 'required|exists:categories,category_id',
             'productBrand'       => 'required|exists:brands,brand_id',
@@ -80,91 +60,252 @@ class products extends Controller
             'size'               => 'nullable|array',
             'size.*'             => 'exists:sizes,size_id',
             'productPic'         => 'nullable|array',
-            'productPic.*'       => 'image|mimes:jpeg,png,jpg,webp|max:2048'
+            'productPic.*'       => 'image|mimes:jpeg,png,jpg,webp|max:10240'
         ]);
 
-        // 2. Safe File Upload Logic
-        $storedImages = [];
+        $storedFilenames = [];
+
         try {
             if ($request->hasFile('productPic')) {
+                $manager = new ImageManager(new Driver());
+
                 foreach ($request->file('productPic') as $image) {
                     if ($image->isValid()) {
-                        $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
-                        $image->storeAs('products', $imageName, 'public');
-                        $storedImages[] = $imageName;
+                        $filename = time() . '_' . uniqid() . '.webp';
+
+                        // 1. Save all 4 size variants synchronously
+                        $imgSmall = $manager->read($image->getRealPath())->scale(width: 150);
+                        Storage::disk('public')->put('products/small_image/' . $filename, (string) $imgSmall->toWebp(quality: 80));
+
+                        $imgMedium = $manager->read($image->getRealPath())->scale(width: 600);
+                        Storage::disk('public')->put('products/medium_image/' . $filename, (string) $imgMedium->toWebp(quality: 80));
+
+                        $imgLarge = $manager->read($image->getRealPath())->scale(width: 1200);
+                        Storage::disk('public')->put('products/large_image/' . $filename, (string) $imgLarge->toWebp(quality: 80));
+
+                        $imgOriginal = $manager->read($image->getRealPath())->scale(width: 1200);
+                        Storage::disk('public')->put('products/' . $filename, (string) $imgOriginal->toWebp(quality: 80));
+
+                        $storedFilenames[] = $filename;
                     }
                 }
             }
         } catch (\Exception $e) {
-            Log::error('Image Upload Failed: ' . $e->getMessage());
+            Log::error('Image Processing Failed: ' . $e->getMessage());
             return redirect()->back()->withInput()->withErrors(['productPic' => 'Image processing failed.']);
         }
 
-        // 3. Database Persistence - Perfect Mapping to Product Model Attributes
-        $product = \App\Models\Product::create([
-            'product_name'   => $validated['productName'],        // Maps to model's 'product_name'
-            'description'    => $validated['productDescription'],
-            'price'          => $validated['price'],
-            'category_id'    => $validated['productCategory'],
-            'brand_id'       => $validated['productBrand'],
-            'product_status' => $validated['productStatus'],      // Maps to model's 'product_status'
-            'user_id'        => \Illuminate\Support\Facades\Auth::id() ?? 1, // Fallback safely if no auth context
-        ]);
+        try {
+            DB::beginTransaction();
 
-        // 4. Pivot Table Syncing for Colors and Sizes
-        if (!empty($validated['colors'])) {
-            $product->colors()->sync($validated['colors']);
-        }
+            $product = product::create([
+                'product_name'   => $validated['productName'],
+                'description'    => $validated['productDescription'],
+                'price'          => $validated['price'],
+                'category_id'    => $validated['productCategory'],
+                'brand_id'       => $validated['productBrand'],
+                'product_status' => $validated['productStatus'],
+                'user_id'        => Auth::id() ?? 1,
+            ]);
 
-        if (!empty($validated['size'])) {
-            $product->sizes()->sync($validated['size']);
-        }
+            if (!empty($validated['colors'])) {
+                $product->colors()->sync($validated['colors']);
+            }
 
-        // 5. Database Multi-Image Association
-        if (!empty($storedImages)) {
-            foreach ($storedImages as $index => $filename) {
-                // Using your exact model class name 'product_image' and column 'image_url'
-                \App\Models\product_image::create([
+            if (!empty($validated['size'])) {
+                $product->sizes()->sync($validated['size']);
+            }
+
+            foreach ($storedFilenames as $index => $filename) {
+                product_image::create([
                     'product_id' => $product->product_id,
-                    'image_url'  => $filename, // FIXED: Changed from image_path to image_url
-                    'sort_order' => $index + 1 // Automatically sets order 1, 2, 3...
+                    'image_url'  => $filename,
+                    'sort_order' => $index + 1
                 ]);
             }
+
+            DB::commit();
+            return redirect()->route('products.index')->with('success', 'Product saved successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            // Clean up files across ALL 4 directories on rollback failure
+            foreach ($storedFilenames as $filename) {
+                Storage::disk('public')->delete([
+                    'products/small_image/' . $filename,
+                    'products/medium_image/' . $filename,
+                    'products/large_image/' . $filename,
+                    'products/' . $filename
+                ]);
+            }
+
+            Log::error('Product Store DB Fail: ' . $e->getMessage());
+            return redirect()->back()->withInput()->withErrors(['error' => 'Database error. Uploaded files reverted safely.']);
         }
-
-        return redirect()->route('products.index')->with('success', 'Product and operational dependencies mapped and saved successfully.');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(string $id)
     {
-        //
+        $pageTitle = 'Edit Product';
+        $breadcrumbs = [
+            'Products' => route('products.index'),
+            'Edit Product' => '#'
+        ];
+
+        $product = product::with(['images', 'colors', 'sizes'])->findOrFail($id);
+        $categories = category::where('category_status', 'active')->orderBy('category_name', 'asc')->get();
+        $brands     = brand::where('brand_status', 'active')->orderBy('brand_name', 'asc')->get();
+        $colors     = color::where('color_status', 'active')->orderBy('color_name', 'asc')->get();
+        $sizes      = size::where('size_status', 'active')->get();
+
+        return view('frontend.products.edit-product', compact('pageTitle', 'breadcrumbs', 'product', 'categories', 'brands', 'colors', 'sizes'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
-        //
+        $product = product::findOrFail($id);
+
+        $validated = $request->validate([
+            'productCategory'    => 'required|exists:categories,category_id',
+            'productBrand'       => 'required|exists:brands,brand_id',
+            'productName'        => 'required|string|max:255',
+            'productDescription' => 'required|string',
+            'price'              => 'required|numeric|min:0|regex:/^\d+(\.\d{1,2})?$/',
+            'productStatus'      => 'required|in:active,inactive',
+            'colors'             => 'nullable|array',
+            'colors.*'           => 'exists:colors,color_id',
+            'size'               => 'nullable|array',
+            'size.*'             => 'exists:sizes,size_id',
+            'productPic'         => 'nullable|array',
+            'productPic.*'       => 'image|mimes:jpeg,png,jpg,webp|max:10240'
+        ]);
+
+        $storedFilenames = [];
+        $hasNewImages = $request->hasFile('productPic');
+
+        try {
+            if ($hasNewImages) {
+                $manager = new ImageManager(new Driver());
+
+                foreach ($request->file('productPic') as $image) {
+                    if ($image->isValid()) {
+                        $filename = time() . '_' . uniqid() . '.webp';
+
+                        $imgSmall = $manager->read($image->getRealPath())->scale(width: 150);
+                        Storage::disk('public')->put('products/small_image/' . $filename, (string) $imgSmall->toWebp(quality: 80));
+
+                        $imgMedium = $manager->read($image->getRealPath())->scale(width: 600);
+                        Storage::disk('public')->put('products/medium_image/' . $filename, (string) $imgMedium->toWebp(quality: 80));
+
+                        $imgLarge = $manager->read($image->getRealPath())->scale(width: 1200);
+                        Storage::disk('public')->put('products/large_image/' . $filename, (string) $imgLarge->toWebp(quality: 80));
+
+                        $imgOriginal = $manager->read($image->getRealPath())->scale(width: 1200);
+                        Storage::disk('public')->put('products/' . $filename, (string) $imgOriginal->toWebp(quality: 80));
+
+                        $storedFilenames[] = $filename;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Image Update Processing Failed: ' . $e->getMessage());
+            return redirect()->back()->withInput()->withErrors(['productPic' => 'Image processing failed.']);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $product->update([
+                'product_name'   => $validated['productName'],
+                'description'    => $validated['productDescription'],
+                'price'          => $validated['price'],
+                'category_id'    => $validated['productCategory'],
+                'brand_id'       => $validated['productBrand'],
+                'product_status' => $validated['productStatus']
+            ]);
+
+            $product->colors()->sync($validated['colors'] ?? []);
+            $product->sizes()->sync($validated['size'] ?? []);
+
+            // If new images were successfully processed, swap them with the old ones
+            if ($hasNewImages && !empty($storedFilenames)) {
+
+                // 1. Get references to old entries before deleting DB lines
+                $oldImages = product_image::where('product_id', $product->product_id)->get();
+
+                // 2. Clear old file logs out of the database
+                product_image::where('product_id', $product->product_id)->delete();
+
+                // 3. Delete old files from ALL 4 structural directories
+                foreach ($oldImages as $oldImage) {
+                    if ($oldImage->image_url) {
+                        Storage::disk('public')->delete([
+                            'products/small_image/' . $oldImage->image_url,
+                            'products/medium_image/' . $oldImage->image_url,
+                            'products/large_image/' . $oldImage->image_url,
+                            'products/' . $oldImage->image_url
+                        ]);
+                    }
+                }
+
+                // 4. Record new images into the database
+                foreach ($storedFilenames as $index => $filename) {
+                    product_image::create([
+                        'product_id' => $product->product_id,
+                        'image_url'  => $filename,
+                        'sort_order' => $index + 1
+                    ]);
+                }
+            }
+
+            DB::commit();
+            return redirect()->route('products.index')->with('success', 'Product updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            // If the database transaction fails, remove the newly uploaded files to prevent junk buildup
+            foreach ($storedFilenames as $filename) {
+                Storage::disk('public')->delete([
+                    'products/small_image/' . $filename,
+                    'products/medium_image/' . $filename,
+                    'products/large_image/' . $filename,
+                    'products/' . $filename
+                ]);
+            }
+
+            Log::error('Product Update DB Fail: ' . $e->getMessage());
+            return redirect()->back()->withInput()->withErrors(['error' => 'Database error during update. Uploaded files reverted safely.']);
+        }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(product $product)
+    public function destroy(string $id) // Change from 'product $product' to 'string $id'
     {
-        $product->delete();
-        return redirect()->route('products.index')->with('success', 'Product successfully deleted');
+        try {
+            // Explicitly find the product by its actual primary key field
+            $product = \App\Models\product::findOrFail($id);
+
+            $productImages = $product->images;
+
+            // 1. Delete existing assets across ALL 4 absolute folder destinations 
+            foreach ($productImages as $image) {
+                if ($image->image_url) {
+                    Storage::disk('public')->delete([
+                        'products/small_image/' . $image->image_url,
+                        'products/medium_image/' . $image->image_url,
+                        'products/large_image/' . $image->image_url,
+                        'products/' . $image->image_url
+                    ]);
+                }
+            }
+
+            // 2. Delete the product record
+            $product->delete();
+
+            // 3. Redirect back to the index
+            return redirect()->route('products.index')->with('success', 'Product and all associated size-variant images deleted successfully.');
+        } catch (\Exception $e) {
+            Log::error('Product Deletion Failed: ' . $e->getMessage());
+            return redirect()->route('products.index')->with('error', 'An error occurred while deleting the product.');
+        }
     }
 }
