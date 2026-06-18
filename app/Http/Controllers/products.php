@@ -55,11 +55,11 @@ class products extends Controller
             'productDescription' => 'required|string',
             'price'              => 'required|numeric|min:0|regex:/^\d+(\.\d{1,2})?$/',
             'productStatus'      => 'required|in:active,inactive',
-            'colors'             => 'nullable|array',
+            'colors'             => 'required|array|min:1',
             'colors.*'           => 'exists:colors,color_id',
-            'size'               => 'nullable|array',
+            'size'               => 'required|array|min:1',
             'size.*'             => 'exists:sizes,size_id',
-            'productPic'         => 'nullable|array',
+            'productPic'         => 'required|array|min:1',
             'productPic.*'       => 'image|mimes:jpeg,png,jpg,webp|max:10240'
         ]);
 
@@ -108,8 +108,8 @@ class products extends Controller
                 'user_id'        => Auth::id() ?? 1,
             ]);
 
-            if (!empty($validated['colors'])) {
-                $product->colors()->sync($validated['colors']);
+            if (!empty($validated['color'])) {
+                $product->colors()->sync($validated['color']);
             }
 
             if (!empty($validated['size'])) {
@@ -121,6 +121,7 @@ class products extends Controller
                     'product_id' => $product->product_id,
                     'image_url'  => $filename,
                     'sort_order' => $index + 1
+                   
                 ]);
             }
 
@@ -282,7 +283,7 @@ class products extends Controller
     {
         try {
             // Explicitly find the product by its actual primary key field
-            $product = \App\Models\product::findOrFail($id);
+            $product = product::findOrFail($id);
 
             $productImages = $product->images;
 

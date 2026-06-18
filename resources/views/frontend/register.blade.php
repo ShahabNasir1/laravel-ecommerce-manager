@@ -1,5 +1,7 @@
-\<!DOCTYPE html>
+\
+<!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -24,37 +26,45 @@
 
                 <!-- Display Validation Errors if any -->
                 @if ($errors->any())
-                    <div class="alert alert-danger text-left p-2">
-                        <ul class="margin-bottom-none" style="list-style: none; padding-left: 5px;">
-                            @foreach ($errors->all() as $error)
-                                <li><small><i class="fa fa-times-circle"></i> {{ $error }}</small></li>
-                            @endforeach
-                        </ul>
-                    </div>
+                <div class="alert alert-danger text-left p-2">
+                    <ul class="margin-bottom-none" style="list-style: none; padding-left: 5px;">
+                        @foreach ($errors->all() as $error)
+                        <li><small><i class="fa fa-times-circle"></i> {{ $error }}</small></li>
+                        @endforeach
+                    </ul>
+                </div>
                 @endif
 
                 <!-- FIX 1: Added 'required' class to inputs -->
                 <div class="form-group">
-                    <input type="text" name="name" class="form-control required" placeholder="Name" value="{{ old('name') }}" >
+                    <input type="text" name="name" class="form-control required" placeholder="Name" value="{{ old('name') }}">
                 </div>
 
                 <div class="form-group">
-                    <input type="email" name="email" class="form-control required" placeholder="Email" value="{{ old('email') }}" >
+                    <input type="email" name="email" class="form-control required" placeholder="Email" value="{{ old('email') }}">
                 </div>
 
                 <div class="form-group">
-                    <input type="password" name="password" class="form-control required" placeholder="Password" >
+                    <input type="password" name="password" class="form-control required" placeholder="Password">
+                </div>
+
+                <div class="form-group">
+                    <select name="user_type" id="user_type" class="form-control required">
+                        <option value="" disabled selected>Select Role</option>
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
                 </div>
 
                 <!-- Checkbox field container structured for error placement -->
                 <div class="form-group text-left">
                     <div class="checkbox i-checks">
-                        <label> 
-                            <input type="checkbox" class="required-check" style="margin-top: 2px;"><i></i> Agree the terms and policy 
+                        <label>
+                            <input type="checkbox" class="required-check" style="margin-top: 2px;"><i></i> Agree the terms and policy
                         </label>
                     </div>
                 </div>
-                
+
                 <button type="submit" class="btn btn-primary block full-width m-b">Register</button>
 
                 <p class="text-muted text-center"><small>Already have an account?</small></p>
@@ -67,9 +77,9 @@
     <script src="{{ url('assets/js/mainScript/jquery-3.1.1.min.js') }}"></script>
     <script src="{{ url('assets/js/mainScript/popper.min.js') }}"></script>
     <script src="{{ url('assets/js/mainScript/bootstrap.js') }}"></script>
-    
+
     <script>
-        document.addEventListener("submit", function (e) {
+        document.addEventListener("submit", function(e) {
             let form = e.target;
 
             // Text fields target karne ke liye
@@ -80,12 +90,12 @@
             let isValid = true;
 
             // Purane errors remove karein
-            form.querySelectorAll(".error-msg").forEach(function (msg) {
+            form.querySelectorAll(".error-msg").forEach(function(msg) {
                 msg.remove();
             });
 
             // 1. Text Fields Validation (Name, Email, Password)
-            requiredFields.forEach(function (field) {
+            requiredFields.forEach(function(field) {
                 if (field.disabled) return;
 
                 let value = (field.value || "").trim();
@@ -104,7 +114,7 @@
                     error.style.textAlign = "left";
                     error.style.marginTop = "4px";
                     error.style.fontWeight = "600";
-                    
+
                     let fieldName = field.getAttribute("placeholder") || "This field";
                     error.innerHTML = `<i class="fa fa-times-circle"></i> ${fieldName} is required.`;
 
@@ -140,4 +150,5 @@
         });
     </script>
 </body>
+
 </html>

@@ -54,7 +54,9 @@
                 </button>
             </div>
             <div id="editErrorBag" class="alert alert-danger d-none m-3"></div>
-            
+
+
+            <!-- // edit popup in color -->
             <form id="editColorForm" method="POST">
                 @csrf
                 @method('PUT')

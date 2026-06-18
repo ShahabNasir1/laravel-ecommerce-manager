@@ -3,76 +3,61 @@
 namespace App\Http\Controllers\frontend;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
 
 class dashboardController extends Controller
 {
-    //
-    public function index()
+    public function index(): View
     {
         return view('frontend.dashboard');
     }
-    public function login()
+
+    public function login(): View
     {
         return view('frontend.login');
     }
 
-    public function loginSubmit(Request $request)
+    public function loginSubmit(LoginRequest $request): RedirectResponse
     {
-        // 1. Validate Form Input
-        $request->validate([
-            'email'    => 'required|email:rfc,dns',
-            'password' => 'required',
-        ]);
-
-        // 2. Fetch User from DB
-        $user = DB::table('users')->where('email', $request->email)->first();
-
-        // 3. Verify Password & Initiate Session
-        if ($user && Hash::check($request->password, $user->password)) {
-            // Put user identifier in the session
-            Session::put('user', $user->email);
+        // Native framework Auth attempts authentication, checks hashes, and generates session cookies
+        if (Auth::attempt($request->validated())) {
+            $request->session()->regenerate();
 
             return redirect()->intended('/');
         }
 
-        // Return back if mismatch found
-        return redirect()->back()->withErrors(['email' => 'These credentials do not match our database records.']);
+        return redirect()->back()->withErrors([
+            'email' => 'These credentials do not match our database records.',
+        ]);
     }
 
-    public function logout()
-    {
-        Session::forget('user');
-        return redirect('/login');
-    }
-    public function register()
+    public function register(): View
     {
         return view('frontend.register');
     }
 
-    public function registerSubmit(Request $request)
+    public function registerSubmit(RegisterRequest $request): RedirectResponse
     {
-        // 1. Form Data Validate Karein
-        $request->validate([
-            'name'     => 'required|string|min:3|max:255',
-            'email'    => 'required|string|email:rfc,dns|max:255|unique:users,email',
-            'password' => 'required|string|min:6',
-        ]);
+        // Leverages Eloquent ORM. The Model auto-hashes the password on creation.
+        User::create($request->validated());
 
-        // 2. Database mein safe user insert karein
-        DB::table('users')->insert([
-            'name'       => $request->name,
-            'email'      => $request->email,
-            'password'   => Hash::make($request->password),
-            // 'phone'      => null,  // Ya '' agar string chahiye
-            // 'address'    => null,  // Ya '' agar text chahiye
-            'registered_at' => now(), // Aapke schema mein 'registered_at' tha, 'created_at' nahi
-        ]);
-
-        // 3. Success message ke sath login page par bhejin
         return redirect('/login')->with('success', 'Account created successfully! Please login.');
+    }
+
+    public function logout(Request $request): RedirectResponse
+    {
+        Auth::logout();
+
+        // Standard framework session flushing to secure application state
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect('/login');
     }
 }

@@ -11,7 +11,8 @@ class product_image extends Model
     protected $fillable = [
         'product_id',
         'image_url',
-        'sort_order'
+        'sort_order',
+        'invalid_column_name_test' // This is an invalid column name for testing purposes
     ];
 
     public function product()

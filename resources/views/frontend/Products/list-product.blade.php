@@ -32,9 +32,9 @@
                         <th>Category</th>
                         <th>Brand</th>
                         <th>Description</th>
-                        <th>Image</th>
-                        <th>Size</th>
-                        <th>Color</th>
+                        <!-- <th>Image</th> -->
+                        <!-- <th>Size</th>
+                        <th>Color</th> -->
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -48,15 +48,15 @@
                         <td>{{ $product->category->category_name ?? 'N/A' }}</td>
                         <td>{{ $product->brand->brand_name ?? 'N/A' }}</td>
                         <td>{{ Str::limit($product->description, 50, '...') }}</td>
-                        <td>
+                        <!-- <td>
                             @if($product->images->isNotEmpty())
                                 <img src="{{ asset('storage/products/' . $product->images->first()->image_url) }}" 
                                      class="product-thumbnail" alt="Product Image" loading="lazy">
                             @else
                                 <span class="text-muted">No Image</span>
                             @endif
-                        </td>
-                        <td>
+                        </td> -->
+                        <!-- <td>
                             @forelse($product->sizes as $size)
                                 <span class="badge badge-dark badge-spacing">{{ $size->size_name }}</span>
                             @empty
@@ -69,7 +69,7 @@
                             @empty
                                 <span class="text-muted">-</span>
                             @endforelse
-                        </td>
+                        </td> -->
                         <td>
                             @if($product->product_status == 'active')
                                 <span class="badge badge-primary">Active</span>

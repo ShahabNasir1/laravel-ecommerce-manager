@@ -7,6 +7,7 @@
             <div class="logo-element">EC+</div>
         </li>
 
+        @if(Auth::check() && Auth::user()->user_type === 'admin')
         <!-- Categories Section -->
         <li class="{{ request()->routeIs('categories.*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-tags"></i> <span class="nav-label">Categories</span> <span class="fa arrow"></span></a>
@@ -42,6 +43,7 @@
                 <li class="{{ request()->routeIs('sizes.index') ? 'active' : '' }}"><a href="{{ route('sizes.index') }}">List Size</a></li>
             </ul>
         </li>
+        @endif
 
         <!-- Products Section -->
         <li class="{{ request()->routeIs('products.*') ? 'active' : '' }}">

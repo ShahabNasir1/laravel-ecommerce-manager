@@ -10,37 +10,31 @@ use App\Http\Controllers\products;
 
 /*
 |--------------------------------------------------------------------------
-| 1. Public / Guest Routes (Handled by Custom Auth Middleware)
+| Public Routes
 |--------------------------------------------------------------------------
 */
-
 Route::get('/login', [dashboardController::class, 'login'])->name('login');
 Route::get('/register', [dashboardController::class, 'register'])->name('register');
 
-// Process Login Form Submission (POST request)
 Route::post('/login', [dashboardController::class, 'loginSubmit'])->name('login.submit');
 Route::post('/register', [dashboardController::class, 'registerSubmit'])->name('register.submit');
-// Route::middleware(['customauth'])->group(function () {
-
-// });
 
 /*
 |--------------------------------------------------------------------------
-| 2. Protected Routes (Handled by Custom Auth Middleware)
+| Protected Routes (CHANGE THIS LINE)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['customauth'])->group(function () {
+Route::middleware(['auth'])->group(function () { // Switched from 'customauth' to 'auth'
 
-    // Main Dashboard View
     Route::get('/', [dashboardController::class, 'index'])->name('index');
 
-    // Application Resource Routes
-    Route::resource('brands', brands::class);
-    Route::resource('categories', categories::class);
-    Route::resource('colors', colors::class);
-    Route::resource('sizes', sizes::class);
-    Route::resource('products', products::class);
+    Route::middleware(['isAdmin'])->group(function () {
+        Route::resource('brands', brands::class);
+        Route::resource('categories', categories::class);
+        Route::resource('colors', colors::class);
+        Route::resource('sizes', sizes::class);
+    });
 
-    // Logout Route
+    Route::resource('products', products::class);
     Route::post('/logout', [dashboardController::class, 'logout'])->name('logout');
 });
