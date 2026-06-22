@@ -39,7 +39,7 @@
         <li class="{{ request()->routeIs('sizes.*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-ruler-combined"></i> <span class="nav-label">Sizes</span><span class="fa arrow"></span></a>
             <ul class="nav nav-second-level collapse">
-                <li class="{{ request()->routeIs('sizes.create') ? 'active' : '' }}"><a href="{{ route('sizes.create') }}">Add Size</a></li>
+                <!-- <li class="{{ request()->routeIs('sizes.create') ? 'active' : '' }}"><a href="{{ route('sizes.create') }}">Add Size</a></li> -->
                 <li class="{{ request()->routeIs('sizes.index') ? 'active' : '' }}"><a href="{{ route('sizes.index') }}">List Size</a></li>
             </ul>
         </li>

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\size;
+use App\Models\Size;
 use Illuminate\Http\Request;
 
 class sizes extends Controller
@@ -14,8 +14,7 @@ class sizes extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $query = size::query();
-
+            $query = Size::query();
             $totalRecords = $query->count();
 
             // Handle Server Side Searching
@@ -67,12 +66,10 @@ class sizes extends Controller
 
             $data = [];
             foreach ($sizes as $size) {
-
                 $statusHtml = $size->size_status === 'active'
                     ? '<span class="label label-primary">Active</span>'
                     : '<span class="label label-danger">Inactive</span>';
 
-                // Fixed Actions buttons to perfectly intercept jQuery event triggers
                 $actionsHtml = '
                     <button type="button" class="btn btn-info btn-sm btn-edit" data-id="' . $size->size_id . '">
                         <i class="fa fa-paste"></i> Edit
@@ -88,8 +85,8 @@ class sizes extends Controller
                     'size_id'              => $size->size_id,
                     'size_name'            => $size->size_name,
                     'size_status'          => $statusHtml, 
-                    'created_at_formatted' => $size->created_at ? $size->created_at->format('d-M-Y H:i A') : 'N/A',
-                    'updated_at_formatted' => $size->updated_at ? $size->updated_at->format('d-M-Y H:i A') : 'N/A',
+                    'created_at_formatted' => $size->created_at ? $size->created_at->tz('Asia/Karachi')->format('d-M-Y H:i A') : 'N/A',
+                    'updated_at_formatted' => $size->updated_at ? $size->updated_at->tz('Asia/Karachi')->format('d-M-Y H:i A') : 'N/A',
                     'actions'              => $actionsHtml,
                 ];
             }
@@ -112,19 +109,6 @@ class sizes extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        $pageTitle = 'Add Size';
-        $breadcrumbs = [
-            'Sizes' => route('sizes.index'),
-            'Add Size' => '#' 
-        ];
-        return view('frontend.sizes.add-size', compact('pageTitle', 'breadcrumbs'));
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -134,20 +118,24 @@ class sizes extends Controller
             'sizeStatus' => 'required|in:active,inactive',
         ]);
 
-        size::create([
+        Size::create([
             'size_name'   => $request->sizeName,
             'size_status' => $request->sizeStatus
         ]);
 
-        return redirect()->route('sizes.index')->with('success', 'Size successfully added');
+        return response()->json([
+            'success' => true,
+            'message' => 'Size successfully added',
+        ]);
     }
 
     /**
-     * Provide raw resource item arrays to the Edit Modal engine.
+     * Provide raw resource item arrays to the Edit Modal engine via AJAX.
+     * Using strict identification lookups ensures robust data fetching.
      */
     public function show(int|string $id)
     {
-        $size = size::find($id);
+        $size = Size::find($id);
 
         if (!$size) {
             return response()->json([
@@ -165,7 +153,7 @@ class sizes extends Controller
     /**
      * Catch and intercept dirty address bar navigation attempts to /sizes/{id}/edit
      */
-    public function edit(size $size)
+    public function edit()
     {
         return redirect()->route('sizes.index')
             ->with('error', 'Please utilize table action control configurations to manage modifications.');
@@ -174,8 +162,17 @@ class sizes extends Controller
     /**
      * Update the specified resource data via AJAX pipeline.
      */
-    public function update(Request $request, size $size)
+    public function update(Request $request, int|string $id)
     {
+        $size = Size::find($id);
+
+        if (!$size) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Size record not found.'
+            ], 404);
+        }
+
         $request->validate([
             'sizeName'   => 'required|string|max:100|unique:sizes,size_name,' . $size->size_id . ',size_id',
             'sizeStatus' => 'required|in:active,inactive',
@@ -195,8 +192,17 @@ class sizes extends Controller
     /**
      * Remove the specified resource completely from storage.
      */
-    public function destroy(size $size)
+    public function destroy(int|string $id)
     {
+        $size = Size::find($id);
+
+        if (!$size) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Size record not found.'
+            ], 404);
+        }
+
         $size->delete();
 
         return response()->json([

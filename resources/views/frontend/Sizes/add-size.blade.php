@@ -1,4 +1,4 @@
-@extends('frontend.components.main')
+<!-- @extends('frontend.components.main')
 @section('breadcrumb-heading')
 <h2>Add Size</h2>
 @endsection
@@ -50,4 +50,4 @@
     </div>
 </div>
 
-@endsection
+@endsection -->
