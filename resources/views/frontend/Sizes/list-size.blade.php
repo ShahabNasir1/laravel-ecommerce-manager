@@ -33,25 +33,25 @@
                 </button>
             </div>
             <div id="addErrorBag" class="alert alert-danger d-none m-3"></div>
-            
+
             <form id="addSizeForm" action="{{ route('sizes.store') }}" method="POST" novalidate>
                 @csrf
                 <div class="modal-body text-left">
                     <div class="form-group">
                         <label for="sizeName">Size Name</label>
-                        <input type="text" name="sizeName" id="sizeName" class="form-control" placeholder="e.g., Large, XL, 42" data-validate="text">
+                        <input type="text" name="sizeName" id="sizeName" class="form-control required" placeholder="e.g., Large, XL, 42">
                     </div>
 
                     <div class="form-group mt-3">
                         <label for="sizeStatus">Status</label>
-                        <select class="form-control" name="sizeStatus" id="sizeStatus" data-validate="text">
+                        <select class="form-control required" name="sizeStatus" id="sizeStatus">
                             <option value="">Select Status</option>
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
                     </div>
                 </div>
-                
+
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Size</button>
@@ -91,18 +91,18 @@
                 </button>
             </div>
             <div id="editErrorBag" class="alert alert-danger d-none m-3"></div>
-            
+
             <form id="editSizeForm" method="POST" novalidate>
                 @csrf
                 @method('PUT')
                 <div class="modal-body">
                     <div class="form-group">
                         <label class="form-label">Size Name</label>
-                        <input type="text" name="sizeName" id="editSizeName" class="form-control" data-validate="text">
+                        <input type="text" name="sizeName" id="editSizeName" class="form-control required">
                     </div>
                     <div class="form-group mt-3">
                         <label class="form-label">Size Status</label>
-                        <select class="form-control" name="sizeStatus" id="editSizeStatus" data-validate="text">
+                        <select class="form-control required" name="sizeStatus" id="editSizeStatus">
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
@@ -144,9 +144,10 @@
 @push('js')
 <script src="assets/js/dataTable/datatables.min.js"></script>
 <script src="assets/js/dataTable/dataTables.bootstrap4.min.js"></script>
-@push('js')
-<script src="assets/js/dataTable/datatables.min.js"></script>
-<script src="assets/js/dataTable/dataTables.bootstrap4.min.js"></script>
+<!-- <script>
+    window.BASE_URL = "{{ url('/') }}";
+</script> -->
+
 <script>
     $(document).ready(function() {
         // Initialize Server-Side Asynchronous DataTable
@@ -159,21 +160,45 @@
                 url: "{{ route('sizes.index') }}",
                 type: "GET"
             },
-            columns: [
-                { data: 'size_id' },
-                { data: 'size_name' },
-                { data: 'size_status', orderable: false, searchable: false },
-                { data: 'created_at_formatted' },
-                { data: 'updated_at_formatted' },
-                { data: 'actions', orderable: false, searchable: false }
+            columns: [{
+                    data: 'size_id'
+                },
+                {
+                    data: 'size_name'
+                },
+                {
+                    data: 'size_status',
+                    orderable: false,
+                    searchable: false
+                },
+                {
+                    data: 'created_at_formatted'
+                },
+                {
+                    data: 'updated_at_formatted'
+                },
+                {
+                    data: 'actions',
+                    orderable: false,
+                    searchable: false
+                }
             ],
             responsive: true,
             dom: '<"html5buttons"B>lTfgitp',
-            buttons: [
-                { extend: 'copy' },
-                { extend: 'csv' },
-                { extend: 'excel', title: 'Sizes_Export' },
-                { extend: 'pdf', title: 'Sizes_Export' },
+            buttons: [{
+                    extend: 'copy'
+                },
+                {
+                    extend: 'csv'
+                },
+                {
+                    extend: 'excel',
+                    title: 'Sizes_Export'
+                },
+                {
+                    extend: 'pdf',
+                    title: 'Sizes_Export'
+                },
                 {
                     extend: 'print',
                     customize: function(win) {
@@ -183,6 +208,10 @@
                 }
             ]
         });
+
+
+
+
 
         // ==========================================
         // SUBMIT LISTENER FOR ADD NEW FORM (AJAX)
@@ -196,21 +225,34 @@
                 return false;
             }
 
-            var actionUrl = form.attr('action');
+            // var actionUrl = form.attr('action');
+            // alert('Form submission URL: ' + actionUrl); 
+            // var cleanBase = window.BASE_URL ? window.BASE_URL.replace(/\/$/, "") : window.location.origin;
+            // var actionUrl1 = cleanBase + "/sizes";
+            // alert('Form submission URL: ' + actionUrl1);
+            var baseUrl = window.BASE_URL ? window.BASE_URL.replace(/\/$/, "") : window.location.origin;
+            var actionUrl = baseUrl + '/sizes';
+            // alert('Form submission URL: ' + actionUrl);
+
             $('#addErrorBag').addClass('d-none').html('');
 
             $.ajax({
                 url: actionUrl,
                 type: "POST",
-                data: form.serialize(),
+                data: {
+                    _token: form.find('input[name="_token"]').val(),
+                    sizeName: form.find('input[name="sizeName"]').val(),
+                    sizeStatus: form.find('select[name="sizeStatus"]').val()
+                },
+                // data: form.serialize() + "&_token=" + $('input[name="_token"]').val(),
                 dataType: "json",
                 success: function(response) {
                     if (response.success) {
                         $('#addSizeModal').modal('hide');
-                        form[0].reset(); 
+                        form[0].reset();
                         form.find('.is-invalid').removeClass('is-invalid');
                         form.find('.invalid-feedback-custom').remove();
-                        table.ajax.reload(null, false); 
+                        table.ajax.reload(null, false);
                     }
                 },
                 error: function(xhr) {
@@ -238,7 +280,7 @@
             var updateUrl = "{{ route('sizes.update', ':id') }}".replace(':id', id);
 
             $('#editErrorBag').addClass('d-none').html('');
-            
+
             $('#editSizeForm').find('.is-invalid').removeClass('is-invalid');
             $('#editSizeForm').find('.invalid-feedback-custom').remove();
             $('#editSizeForm').attr('action', updateUrl);
@@ -248,7 +290,7 @@
                 type: "GET",
                 dataType: "json",
                 success: function(response) {
-                    if(response.success) {
+                    if (response.success) {
                         $('#editSizeName').val(response.data.size_name);
                         $('#editSizeStatus').val(response.data.size_status);
                         $('#editModal').modal('show');
@@ -276,13 +318,13 @@
 
             $.ajax({
                 url: actionUrl,
-                type: "POST", 
+                type: "POST",
                 data: form.serialize(),
                 dataType: "json",
                 success: function(response) {
                     if (response.success) {
                         $('#editModal').modal('hide');
-                        table.ajax.reload(null, false); 
+                        table.ajax.reload(null, false);
                     }
                 },
                 error: function(xhr) {
@@ -308,7 +350,7 @@
             var id = $(this).data('id');
             var name = $(this).data('name');
             var deleteRoute = "{{ route('sizes.destroy', ':id') }}".replace(':id', id);
-            
+
             $('#deleteSizeName').text(name);
             $('#deleteSizeForm').attr('action', deleteRoute);
             $('#deleteModal').modal('show');
@@ -343,5 +385,5 @@
     });
 </script>
 @endpush
-@endpush
+
 @endsection

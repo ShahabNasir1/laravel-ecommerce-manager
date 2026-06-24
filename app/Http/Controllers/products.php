@@ -8,16 +8,16 @@ use App\Models\color;
 use App\Models\size;
 use App\Models\product;
 use App\Models\product_image;
+use App\Traits\HandlesImageUploads;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
 
 class products extends Controller
 {
+    use HandlesImageUploads;
+
     public function index()
     {
         $pageTitle = 'List Products';
@@ -63,33 +63,8 @@ class products extends Controller
             'productPic.*'       => 'image|mimes:jpeg,png,jpg,webp|max:10240'
         ]);
 
-        $storedFilenames = [];
-
         try {
-            if ($request->hasFile('productPic')) {
-                $manager = new ImageManager(new Driver());
-
-                foreach ($request->file('productPic') as $image) {
-                    if ($image->isValid()) {
-                        $filename = time() . '_' . uniqid() . '.webp';
-
-                        // 1. Save all 4 size variants synchronously
-                        $imgSmall = $manager->read($image->getRealPath())->scale(width: 150);
-                        Storage::disk('public')->put('products/small_image/' . $filename, (string) $imgSmall->toWebp(quality: 80));
-
-                        $imgMedium = $manager->read($image->getRealPath())->scale(width: 600);
-                        Storage::disk('public')->put('products/medium_image/' . $filename, (string) $imgMedium->toWebp(quality: 80));
-
-                        $imgLarge = $manager->read($image->getRealPath())->scale(width: 1200);
-                        Storage::disk('public')->put('products/large_image/' . $filename, (string) $imgLarge->toWebp(quality: 80));
-
-                        $imgOriginal = $manager->read($image->getRealPath())->scale(width: 1200);
-                        Storage::disk('public')->put('products/' . $filename, (string) $imgOriginal->toWebp(quality: 80));
-
-                        $storedFilenames[] = $filename;
-                    }
-                }
-            }
+            $storedFilenames = $this->uploadAndResizeImages($request->file('productPic'), 'products');
         } catch (\Exception $e) {
             Log::error('Image Processing Failed: ' . $e->getMessage());
             return redirect()->back()->withInput()->withErrors(['productPic' => 'Image processing failed.']);
@@ -108,8 +83,8 @@ class products extends Controller
                 'user_id'        => Auth::id() ?? 1,
             ]);
 
-            if (!empty($validated['color'])) {
-                $product->colors()->sync($validated['color']);
+            if (!empty($validated['colors'])) {
+                $product->colors()->sync($validated['colors']);
             }
 
             if (!empty($validated['size'])) {
@@ -121,7 +96,6 @@ class products extends Controller
                     'product_id' => $product->product_id,
                     'image_url'  => $filename,
                     'sort_order' => $index + 1
-                   
                 ]);
             }
 
@@ -130,15 +104,7 @@ class products extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
-            // Clean up files across ALL 4 directories on rollback failure
-            foreach ($storedFilenames as $filename) {
-                Storage::disk('public')->delete([
-                    'products/small_image/' . $filename,
-                    'products/medium_image/' . $filename,
-                    'products/large_image/' . $filename,
-                    'products/' . $filename
-                ]);
-            }
+            $this->deleteImageVariations($storedFilenames, 'products');
 
             Log::error('Product Store DB Fail: ' . $e->getMessage());
             return redirect()->back()->withInput()->withErrors(['error' => 'Database error. Uploaded files reverted safely.']);
@@ -184,33 +150,13 @@ class products extends Controller
         $storedFilenames = [];
         $hasNewImages = $request->hasFile('productPic');
 
-        try {
-            if ($hasNewImages) {
-                $manager = new ImageManager(new Driver());
-
-                foreach ($request->file('productPic') as $image) {
-                    if ($image->isValid()) {
-                        $filename = time() . '_' . uniqid() . '.webp';
-
-                        $imgSmall = $manager->read($image->getRealPath())->scale(width: 150);
-                        Storage::disk('public')->put('products/small_image/' . $filename, (string) $imgSmall->toWebp(quality: 80));
-
-                        $imgMedium = $manager->read($image->getRealPath())->scale(width: 600);
-                        Storage::disk('public')->put('products/medium_image/' . $filename, (string) $imgMedium->toWebp(quality: 80));
-
-                        $imgLarge = $manager->read($image->getRealPath())->scale(width: 1200);
-                        Storage::disk('public')->put('products/large_image/' . $filename, (string) $imgLarge->toWebp(quality: 80));
-
-                        $imgOriginal = $manager->read($image->getRealPath())->scale(width: 1200);
-                        Storage::disk('public')->put('products/' . $filename, (string) $imgOriginal->toWebp(quality: 80));
-
-                        $storedFilenames[] = $filename;
-                    }
-                }
+        if ($hasNewImages) {
+            try {
+                $storedFilenames = $this->uploadAndResizeImages($request->file('productPic'), 'products');
+            } catch (\Exception $e) {
+                Log::error('Image Update Processing Failed: ' . $e->getMessage());
+                return redirect()->back()->withInput()->withErrors(['productPic' => 'Image processing failed.']);
             }
-        } catch (\Exception $e) {
-            Log::error('Image Update Processing Failed: ' . $e->getMessage());
-            return redirect()->back()->withInput()->withErrors(['productPic' => 'Image processing failed.']);
         }
 
         try {
@@ -228,28 +174,15 @@ class products extends Controller
             $product->colors()->sync($validated['colors'] ?? []);
             $product->sizes()->sync($validated['size'] ?? []);
 
-            // If new images were successfully processed, swap them with the old ones
             if ($hasNewImages && !empty($storedFilenames)) {
+                // Fetch the relationships collection directly instead of using a broken where method call
+                $oldImages = $product->images;
 
-                // 1. Get references to old entries before deleting DB lines
-                $oldImages = product_image::where('product_id', $product->product_id)->get();
-
-                // 2. Clear old file logs out of the database
                 product_image::where('product_id', $product->product_id)->delete();
 
-                // 3. Delete old files from ALL 4 structural directories
-                foreach ($oldImages as $oldImage) {
-                    if ($oldImage->image_url) {
-                        Storage::disk('public')->delete([
-                            'products/small_image/' . $oldImage->image_url,
-                            'products/medium_image/' . $oldImage->image_url,
-                            'products/large_image/' . $oldImage->image_url,
-                            'products/' . $oldImage->image_url
-                        ]);
-                    }
-                }
+                // Pass the Eloquent collection straight into our modernized trait method
+                $this->deleteImageVariations($oldImages, 'products');
 
-                // 4. Record new images into the database
                 foreach ($storedFilenames as $index => $filename) {
                     product_image::create([
                         'product_id' => $product->product_id,
@@ -264,14 +197,8 @@ class products extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
-            // If the database transaction fails, remove the newly uploaded files to prevent junk buildup
-            foreach ($storedFilenames as $filename) {
-                Storage::disk('public')->delete([
-                    'products/small_image/' . $filename,
-                    'products/medium_image/' . $filename,
-                    'products/large_image/' . $filename,
-                    'products/' . $filename
-                ]);
+            if (!empty($storedFilenames)) {
+                $this->deleteImageVariations($storedFilenames, 'products');
             }
 
             Log::error('Product Update DB Fail: ' . $e->getMessage());
@@ -279,31 +206,17 @@ class products extends Controller
         }
     }
 
-    public function destroy(string $id) // Change from 'product $product' to 'string $id'
+    public function destroy(string $id)
     {
         try {
-            // Explicitly find the product by its actual primary key field
             $product = product::findOrFail($id);
 
-            $productImages = $product->images;
+            // Pass collection reference directly to trait for file system deletion before record drops
+            $this->deleteImageVariations($product->images, 'products');
 
-            // 1. Delete existing assets across ALL 4 absolute folder destinations 
-            foreach ($productImages as $image) {
-                if ($image->image_url) {
-                    Storage::disk('public')->delete([
-                        'products/small_image/' . $image->image_url,
-                        'products/medium_image/' . $image->image_url,
-                        'products/large_image/' . $image->image_url,
-                        'products/' . $image->image_url
-                    ]);
-                }
-            }
-
-            // 2. Delete the product record
             $product->delete();
 
-            // 3. Redirect back to the index
-            return redirect()->route('products.index')->with('success', 'Product and all associated size-variant images deleted successfully.');
+            return redirect()->route('products.index')->with('success', 'Product and all variations deleted successfully from storage.');
         } catch (\Exception $e) {
             Log::error('Product Deletion Failed: ' . $e->getMessage());
             return redirect()->route('products.index')->with('error', 'An error occurred while deleting the product.');

@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Size;
+use App\Traits\HasApiResponses; // 1. Import the trait
 use Illuminate\Http\Request;
-
+use Illuminate\Http\JsonResponse;
 class sizes extends Controller
 {
     /**
      * Display a listing of the resource.
      * Manages both raw base template views and high-throughput DataTables AJAX transfers.
      */
+    use HasApiResponses;
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -113,6 +115,8 @@ class sizes extends Controller
      */
     public function store(Request $request)
     {
+        // echo "Received request data: " . json_encode($request->all()); // Debugging line
+        // exit;
         $request->validate([
             'sizeName'   => 'required|string|min:1|max:100|unique:sizes,size_name',
             'sizeStatus' => 'required|in:active,inactive',
@@ -133,21 +137,16 @@ class sizes extends Controller
      * Provide raw resource item arrays to the Edit Modal engine via AJAX.
      * Using strict identification lookups ensures robust data fetching.
      */
-    public function show(int|string $id)
+    public function show(int|string $id): JsonResponse
     {
         $size = Size::find($id);
 
+        // 3. Use the trait method here
         if (!$size) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Size record not found.'
-            ], 404);
+            return $this->errorResponse('Size record not found.', 404);
         }
 
-        return response()->json([
-            'success' => true,
-            'data'    => $size
-        ]);
+        return $this->successResponse('Size fetched successfully.', $size);
     }
 
     /**
@@ -192,22 +191,17 @@ class sizes extends Controller
     /**
      * Remove the specified resource completely from storage.
      */
-    public function destroy(int|string $id)
+   public function destroy(int|string $id): JsonResponse
     {
         $size = Size::find($id);
 
         if (!$size) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Size record not found.'
-            ], 404);
+            // Reusable across all methods and controllers
+            return $this->errorResponse('Size record not found.', 404);
         }
 
         $size->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Size tracking unit safely dropped from registry.'
-        ]);
+        return $this->successResponse('Size dropped safely from registry.');
     }
 }

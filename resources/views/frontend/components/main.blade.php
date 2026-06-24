@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ecommerce</title>
-    
+
     <link href="{{ url('assets/css/mainCSS/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ url('assets/css/mainCSS/font-awesome.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -79,7 +79,11 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        // Expose helpers globally so children scripts can utilize them
+    window.BASE_URL = "{{ url('/') }}";
+</script>
+
+    <script>
+        // Global Error UI Toggling
         window.toggleError = function(input, errorMessage) {
             const $el = $(input);
             let $container = $el.closest('.form-group, .col-sm-10, .col-md-12');
@@ -88,63 +92,46 @@
             $container.find('.invalid-feedback-custom').remove();
             $el.removeClass('is-invalid');
 
-            if ($el.hasClass('select2-hidden-accessible')) {
-                $el.next('.select2-container').find('.select2-selection').css('border-color', '');
-            }
+            const isSelect2 = $el.hasClass('select2-hidden-accessible');
+            if (isSelect2) $el.next('.select2-container').find('.select2-selection').css('border-color', '');
 
             if (errorMessage) {
                 $el.addClass('is-invalid');
-                if ($el.hasClass('select2-hidden-accessible')) {
-                    $el.next('.select2-container').find('.select2-selection').css('border-color', '#ed5565');
-                }
+                if (isSelect2) $el.next('.select2-container').find('.select2-selection').css('border-color', '#ed5565');
                 $container.append(`<div class="invalid-feedback-custom" style="color: #ed5565; font-size: 85%; margin-top: 5px; font-weight: bold;">${errorMessage}</div>`);
             }
         };
 
         $(document).ready(function() {
-            const validators = {
-                text: (val) => (val && val.trim().length > 0 ? null : "This field is required11111."),
-                textarea: (val) => (val && val.trim().length >= 10 ? null : "Must be at least 10 characters."),
-                email: (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) ? null : "Invalid email address.",
-                password: (val) => (val && val.length >= 8 && /\d/.test(val)) ? null : "Password must be at least 8 characters and contain a number.",
-                checkbox: (el) => ($(el).is(':checked') ? null : "You must check this box."),
-                select2: (val) => {
-                    if (Array.isArray(val)) return val.length > 0 ? null : "Please select at least one option.";
-                    return val && val.trim() !== "" ? null : "Please select an option.";
-                },
-                file: (el, constraints) => {
-                    const files = el.files;
-                    if (!files || files.length === 0) return "No file selected.";
-                    const maxMb = constraints.maxSize || 5;
-                    if (files[0].size > maxMb * 1024 * 1024) return `File exceeds maximum size of ${maxMb}MB.`;
-                    return null;
-                }
-            };
-
-            /**
-             * Global Validation Execution Core Engine
-             * Exposing this to window allows child AJAX scripts to stop requests BEFORE dispatch
-             */
+            // Main Validation Engine
             window.validateForm = function($form) {
                 let isFormValid = true;
 
-                $form.find('[data-validate]').each(function() {
-                    const input = this;
-                    const type = $(input).data('validate');
-                    const value = $(input).val();
+                // Sirf required fields par loop chalega
+                $form.find('input[required], textarea[required], select[required], .required').each(function() {
+                    const input = this,
+                        $input = $(this),
+                        value = $input.val();
+                    const tagName = input.tagName.toLowerCase(),
+                        type = input.type || 'text';
                     let error = null;
 
-                    if (!validators[type]) return;
-
-                    if (type === 'checkbox') {
-                        error = validators.checkbox(input);
+                    // Inline If-Else Validation Logic
+                    if (tagName === 'select' || $input.hasClass('select2-hidden-accessible')) {
+                        if (Array.isArray(value) ? value.length === 0 : !value || !value.trim()) error = "Please select an option.";
+                    } else if (tagName === 'textarea') {
+                        if (!value || value.trim().length < 10) error = "Must be at least 10 characters.";
+                    } else if (type === 'checkbox') {
+                        if (!$input.is(':checked')) error = "You must check this box.";
                     } else if (type === 'file') {
-                        const maxSize = $(input).data('max-size');
-                        error = validators.file(input, { maxSize });
-                    } else if ($(input).hasClass('select2-hidden-accessible')) {
-                        error = validators.select2(value);
+                        if (!input.files || input.files.length === 0) error = "No file selected.";
+                        else if (input.files[0].size > ($input.data('max-size') || 5) * 1024 * 1024) error = "File size exceeded.";
+                    } else if (type === 'email') {
+                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) error = "Invalid email address.";
+                    } else if (type === 'password') {
+                        if (!value || value.length < 8 || !/\d/.test(value)) error = "Password must be 8+ chars with a number.";
                     } else {
-                        error = validators[type](value);
+                        if (!value || !value.trim()) error = "This field is required1.";
                     }
 
                     if (error) {
@@ -155,31 +142,30 @@
                     }
                 });
 
+                // Auto-Scroll
                 if (!isFormValid) {
-                    $('html, body').animate({
-                        scrollTop: $form.find('.is-invalid').first().offset().top - 100
-                    }, 300);
-                    $form.find('.is-invalid').first().focus();
+                    const $firstInvalid = $form.find('.is-invalid').first();
+                    if ($firstInvalid.length) {
+                        $('html, body').animate({
+                            scrollTop: $firstInvalid.offset().top - 100
+                        }, 300);
+                        $firstInvalid.focus();
+                    }
                 }
-
                 return isFormValid;
             };
 
-            // Catch-all submission handling for standard synchronous forms
+            // Event Handlers
             $(document).on('submit', 'form', function(e) {
-                const $form = $(this);
-                
-                // If validation fails, kill event lifecycle immediately
-                if (!window.validateForm($form)) {
+                if (!window.validateForm($(this))) {
                     e.preventDefault();
                     e.stopImmediatePropagation();
                     return false;
                 }
             });
 
-            // Real-time error flushing for interactive state updates
-            $(document).on('input change', '[data-validate]', function() {
-                window.toggleError(this, null);
+            $(document).on('input change', 'input, textarea, select', function() {
+                if (this.hasAttribute('required') || $(this).hasClass('required')) window.toggleError(this, null);
             });
         });
     </script>
